@@ -255,6 +255,12 @@ void do_input(int fd, unsigned char* buf, struct dev_input input)
     if (rx > -11 && rx < 11) rx = 0;
     if (ry > -11 && ry < 11) ry = 0;
 
+    //min value is -127
+    if (lx <= -128) lx = -127;
+    if (ly <= -128) ly = -127;
+    if (rx <= -128) rx = -127;
+    if (ry <= -128) ry = -127;
+
     //lr3 enable/disable
     if ((b1 & SIXAXIS_KEY_L3) && b1 != last_b1)
       lr3_axis = !lr3_axis;

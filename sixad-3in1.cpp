@@ -149,6 +149,12 @@ int main(int argc, char **argv)
           kLeft  = buf[8];
           kUp    = buf[9];
           kDown  = buf[10];
+          
+          //min value is -127
+          if (lx <= -128) lx = -127;
+          if (ly <= -128) ly = -127;
+          if (rx <= -128) rx = -127;
+          if (ry <= -128) ry = -127;
 
         } else {
           if (errno != EAGAIN) {

@@ -90,10 +90,23 @@ void do_joystick(int fd, unsigned char* buf, struct dev_joystick joystick)
     b1 = buf[3];
     b2 = buf[4];
     b3 = buf[5];
-    lx = buf[7] - 128;
-    ly = buf[8] - 128;
-    rx = buf[9] - 128;
-    ry = buf[10] - 128;
+    //min value is -127
+    if (buf[7] == 0) 
+        lx = -127;
+    else
+        lx = buf[7] - 128;
+    if (buf[8] == 0) 
+        ly = -127;
+    else
+        ly = buf[8] - 128;
+    if (buf[9] == 0) 
+        rx = -127;
+    else
+        rx = buf[9] - 128;
+    if (buf[10] == 0) 
+        ry = -127;
+    else
+        ry = buf[10] - 128;
     acx = - (buf[42]<<8 | buf[43]); //reversed
     acy = buf[44]<<8 | buf[45];
     acz = buf[46]<<8 | buf[47];

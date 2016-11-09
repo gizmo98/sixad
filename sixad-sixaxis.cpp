@@ -388,7 +388,7 @@ int main(int argc, char *argv[])
 
     shutdown(isk, SHUT_RDWR); // Shutdown Interupt socket.
     usleep(1000); // Wait for buffer clear?
-    close(csk, SHUT_RDWR); // Close socket.
+    close(csk); // Close socket.
 
     syslog(LOG_INFO, "Disconnected \"%s\"", mac);
     sig_term(0);

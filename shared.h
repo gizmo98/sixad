@@ -72,6 +72,7 @@ struct device_settings {
     struct dev_remote remote;
     struct dev_input input;
     struct dev_rumble rumble;
+    struct dev_safety_timeout timeout; // Add inactive timeout.
     struct dev_safety_timeout safety_timeout;
 };
 

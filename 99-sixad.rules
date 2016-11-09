@@ -1,3 +1,4 @@
 DRIVER=="usb", SUBSYSTEM=="usb", ATTR{idVendor}=="054c", ATTR{idProduct}=="0268", RUN+="/usr/sbin/sixad-helper sixpair"
+DRIVER=="usb", SUBSYSTEM=="usb", ATTR{idVendor}=="054c", ATTR{idProduct}=="05c4", RUN+="/usr/sbin/sixad-helper sixpair"
 SUBSYSTEM=="input", ATTR{name}=="PLAYSTATION(R)3 Controller*", RUN+="/usr/sbin/sixad-helper"
 

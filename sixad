@@ -2,18 +2,22 @@
 
 # sixad-bin wrapper
 # written by falkTX
+# modified by Dark-Show
 
 DEBUG=0
 LEGACY=0
 BLUETOOTHD=/usr/sbin/bluetoothd
 
+trap "exit" SIGHUP SIGINT SIGTERM
+
 . /etc/default/sixad
 
-if [ -f /usr/bin/sudo ]; then
-  SUDO="/usr/bin/sudo"
-else
-  SUDO=""
+bt_device_checkr() {
+if (! hciconfig dev &> /dev/null); then
+    return 0;
 fi
+return 1;
+}
 
 bt_device_check () {
 if (which hciconfig > /dev/null); then
@@ -32,12 +36,21 @@ if (which hciconfig > /dev/null); then
     echo "You're using a _really_ old bluetooth dongle,"
     echo "the Sixaxis will just not work!"
   fi
+  bt_device_enable
 fi
 }
 
 bt_device_enable () {
-hciconfig device up
-hciconfig device pscan
+bt_device_up
+bt_device_pscan
+}
+
+bt_device_up () {
+hciconfig hci0 up
+}
+
+bt_device_pscan () {
+hciconfig hci0 pscan
 }
 
 sixad_running_check () {
@@ -48,25 +61,29 @@ bluetoothd_running_check () {
 ps -e | grep bluetoothd > /dev/null
 }
 
-modprobe_check () {
-$SUDO /sbin/modprobe uinput
+isroot_check () {
+# check, if sudo is used
+if [[ $(id -u) -ne 0 ]]; then
+    echo "Script must be run as root. Try 'sudo $0'"
+    exit 1
+fi
 }
 
 bt_start () {
-$SUDO chmod 755 "$BLUETOOTHD"
+chmod 755 "$BLUETOOTHD"
 if [ -f /lib/udev/rules.d/97-bluetooth-hid2hci.rules ]; then
-  $SUDO /usr/sbin/bluetoothd --udev
+  /usr/sbin/bluetoothd --udev
 elif [ -f /etc/rc.d/bluetooth ]; then
-  $SUDO /etc/rc.d/bluetooth start
+  /etc/rc.d/bluetooth start
 else
-  $SUDO /etc/init.d/bluetooth start
+  /etc/init.d/bluetooth start
 fi
 }
 
 bt_stop() {
-$SUDO chmod 644 "$BLUETOOTHD"
+chmod 644 "$BLUETOOTHD"
 if (bluetoothd_running_check); then
-  $SUDO pkill -KILL bluetoothd
+  pkill -KILL bluetoothd
 fi
 }
 
@@ -76,77 +93,109 @@ env sleep 2
 bt_stop
 }
 
-case $1 in
+sixad_watchdog (){
+    echo "Watching... (5s)"
+    while (true); do
+        if (bt_device_checkr); then
+            echo "Watchdog: Bluetooth disconnected, killing sixad."
+            pkill -KILL sixad-sixaxis
+            pkill -KILL sixad-remote
+            pkill -TERM sixad-bin
+            break
+        fi
+        if (hciconfig hci0 | grep "DOWN" &> /dev/null); then
+          echo "Watchdog: hci0 down, re-enabling."
+          bt_device_up
+        fi
+        if ! (hciconfig hci0 | grep "PSCAN" &> /dev/null); then
+          echo "Watchdog: PSCAN not set, resetting."
+          bt_device_pscan
+        fi
+        sleep 5;
+    done
+    sixad_start
+}
 
+sixad_start () {
+    bt_device_check
+    bt_start_and_stop
+    env sleep 1
+    /usr/sbin/sixad-bin $DEBUG $LEGACY $REMOTE &
+    env sleep 2
+    bt_device_enable
+    sixad_watchdog
+}
+
+case $1 in
   --start|-start|start|-s)
+isroot_check
+#boot error fix attempt.
 REMOTE=0
 bt_device_check
-bt_device_enable 
 if (sixad_running_check); then
   echo "sixad is already running."
   echo "run '$0 --stop' to stop it"
 else
- if (modprobe_check); then  #Check for root access before running, If NO access, quit
-  bt_start_and_stop
-  $SUDO /usr/sbin/sixad-bin $DEBUG $LEGACY $REMOTE
- else
-  echo "You need admin/root access to run this application"
- fi
+  sixad_start
 fi
   ;;
 
   --stop|-stop|stop)
-$SUDO pkill -KILL sixad-sixaxis
-$SUDO pkill -KILL sixad-remote
-$SUDO pkill -TERM sixad-bin
+isroot_check
+pkill -KILL sixad-sixaxis
+pkill -KILL sixad-remote
+pkill -TERM sixad-bin
 bt_start
+env sleep 1
+pkill -TERM sixad
   ;;
 
   --remote|-remote|remote)
+isroot_check
 REMOTE=1
 bt_device_check
-bt_device_enable
-if (modprobe_check); then  #Check for root access before running, If NO access, quit
-  bt_start_and_stop
-  $SUDO /usr/sbin/sixad-bin $DEBUG $LEGACY $REMOTE
-else
-  echo "You need admin/root access to run this application"
-fi
+bt_start_and_stop
+/usr/sbin/sixad-bin $DEBUG $LEGACY $REMOTE
+env sleep 2
+sixad_watchdog
   ;;
 
   --restore|-restore|restore|-r)
+isroot_check
 bt_start
   ;;
 
   --boot-yes)
+isroot_check
 # ArchLinux
 if [ -f /etc/arch-release ]; then
-  $SUDO sed '/DAEMONS=/ s/)/ sixad)/g' -i /etc/rc.conf
+  sed '/DAEMONS=/ s/)/ sixad)/g' -i /etc/rc.conf
 # Gentoo
 elif [ -f /etc/gentoo-release ]; then
-  $SUDO rc-update add sixad
+  rc-update add sixad
 # Debian (default)
 else
-  if [ -f /etc/rc2.d/S90sixad ]; then true; else $SUDO ln -s /etc/init.d/sixad /etc/rc2.d/S90sixad; fi
-  if [ -f /etc/rc3.d/S90sixad ]; then true; else $SUDO ln -s /etc/init.d/sixad /etc/rc3.d/S90sixad; fi
-  if [ -f /etc/rc4.d/S90sixad ]; then true; else $SUDO ln -s /etc/init.d/sixad /etc/rc4.d/S90sixad; fi
-  if [ -f /etc/rc5.d/S90sixad ]; then true; else $SUDO ln -s /etc/init.d/sixad /etc/rc5.d/S90sixad; fi
+  if [ -f /etc/rc2.d/S90sixad ]; then true; else ln -s /etc/init.d/sixad /etc/rc2.d/S90sixad; fi
+  if [ -f /etc/rc3.d/S90sixad ]; then true; else ln -s /etc/init.d/sixad /etc/rc3.d/S90sixad; fi
+  if [ -f /etc/rc4.d/S90sixad ]; then true; else ln -s /etc/init.d/sixad /etc/rc4.d/S90sixad; fi
+  if [ -f /etc/rc5.d/S90sixad ]; then true; else ln -s /etc/init.d/sixad /etc/rc5.d/S90sixad; fi
 fi
   ;;
 
   --boot-no)
+isroot_check
 # ArchLinux
 if [ -f /etc/arch-release ]; then
-  $SUDO sed "s/ sixad//" -i /etc/rc.conf
+  sed "s/ sixad//" -i /etc/rc.conf
 # Gentoo
 elif [ -f /etc/gentoo-release ]; then
-  $SUDO rc-update delete sixad
+  rc-update delete sixad
 # Debian (default)
 else
-  if [ -f /etc/rc2.d/S90sixad ]; then $SUDO rm /etc/rc2.d/S90sixad; fi
-  if [ -f /etc/rc3.d/S90sixad ]; then $SUDO rm /etc/rc3.d/S90sixad; fi
-  if [ -f /etc/rc4.d/S90sixad ]; then $SUDO rm /etc/rc4.d/S90sixad; fi
-  if [ -f /etc/rc5.d/S90sixad ]; then $SUDO rm /etc/rc5.d/S90sixad; fi
+  if [ -f /etc/rc2.d/S90sixad ]; then rm /etc/rc2.d/S90sixad; fi
+  if [ -f /etc/rc3.d/S90sixad ]; then rm /etc/rc3.d/S90sixad; fi
+  if [ -f /etc/rc4.d/S90sixad ]; then rm /etc/rc4.d/S90sixad; fi
+  if [ -f /etc/rc5.d/S90sixad ]; then rm /etc/rc5.d/S90sixad; fi
 fi
   ;;
 

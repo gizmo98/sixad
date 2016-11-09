@@ -159,6 +159,16 @@ static void rumble_listen()
     pthread_exit((void*)1);
 }
 
+static int get_time()
+{
+    timespec tp;
+    if (!clock_gettime(CLOCK_MONOTONIC, &tp)) {
+        return tp.tv_sec/60;
+    } else {
+        return -1;
+    }
+}
+
 static void process_sixaxis(struct device_settings settings, const char *mac)
 {
     int br;
@@ -172,6 +182,8 @@ static void process_sixaxis(struct device_settings settings, const char *mac)
     sigdelset(&sigs, SIGTERM);
     sigdelset(&sigs, SIGINT);
     sigdelset(&sigs, SIGHUP);
+    
+    int last_time_action = get_time();
 
     while (!io_canceled()) {
         br = read(isk, buf, sizeof(buf));
@@ -179,6 +191,18 @@ static void process_sixaxis(struct device_settings settings, const char *mac)
         if (msg) {
             syslog(LOG_INFO, "Connected 'PLAYSTATION(R)3 Controller (%s)' [Battery %02X]", mac, buf[31]);
             msg = false;
+        }
+        
+        if (settings.timeout.enabled) {
+            int current_time = get_time();
+            if (was_active()) {
+                last_time_action = current_time;
+                set_active(false);
+            } else if (current_time-last_time_action >= settings.timeout.timeout_ms) {
+                syslog(LOG_INFO, "Inactive timeout reached, disconnecting...");
+                sig_term(0);
+                break;
+            }
         }
 
         if (br < 0) {
@@ -359,22 +383,14 @@ int main(int argc, char *argv[])
 
     do_rumble(csk, 10, 0xff, 0xff, 0x01);
     usleep(10*1000);
-
-    shutdown(isk, SHUT_RDWR);
-    shutdown(csk, SHUT_RDWR);
-
+    
     delete ufd;
 
-    // hack for force disconnect
-    char cmd[32] = { 0 };
-    strcpy(cmd, "hcitool dc ");
-    strcat(cmd, mac);
+    shutdown(isk, SHUT_RDWR); // Shutdown Interupt socket.
+    usleep(1000); // Wait for buffer clear?
+    close(csk); // Close socket.
 
-    usleep(10*1000);
-    syslog(LOG_INFO, "Force disconnect of \"%s\"", mac);
-    system(cmd);
-
-    if (debug) syslog(LOG_INFO, "Done");
-
+    syslog(LOG_INFO, "Disconnected \"%s\"", mac);
+    sig_term(0);
     return 0;
 }

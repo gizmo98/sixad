@@ -37,17 +37,41 @@ volatile bool active = false;
 
 struct uinput_fd *ufd;
 
+static int get_time()
+{
+    timespec tp;
+    if (!clock_gettime(CLOCK_MONOTONIC, &tp)) {
+        return tp.tv_sec/60;
+    } else {
+        return -1;
+    }
+}
+
 static void process_remote(struct device_settings settings, const char *mac, int modes)
 {
     int br;
     bool msg = true;
     unsigned char buf[128];
+    
+    int last_time_action = get_time();
 
     while (!io_canceled()) {
         br = read(isk, buf, sizeof(buf));
         if (msg) {
             syslog(LOG_INFO, "Connected 'PLAYSTATION(R)3 Remote (%s)'", mac);
             msg = false;
+        }
+        
+        if (settings.timeout.enabled) {
+            int current_time = get_time();
+            if (was_active()) {
+                last_time_action = current_time;
+                set_active(false);
+            } else if (current_time-last_time_action >= settings.timeout.timeout_ms) {
+                syslog(LOG_INFO, "Inactive timeout reached, disconnecting...");
+                sig_term(0);
+                break;
+            }
         }
 
         if (br < 0) {

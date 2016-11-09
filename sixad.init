@@ -28,7 +28,7 @@ if (sixad_already_running_check "$1"); then
 else
 {
   log_daemon_msg "Starting sixad"
-  $DAEMON --start &>>/var/log/sixad &
+  sudo $DAEMON --start &>>/var/log/sixad &
   log_end_msg 0
 }
 fi
@@ -37,7 +37,7 @@ fi
     if (sixad_already_running_check "$1"); then
     {
       log_daemon_msg "Stopping sixad"
-      $DAEMON --stop || true
+      sudo $DAEMON --stop || true
       log_end_msg 0
     }
     else

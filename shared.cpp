@@ -118,6 +118,9 @@ struct device_settings init_values(const char *addr)
         settings.rumble.enabled = textfile_get_int(pathname, "enable_rumble", 1);
         settings.rumble.old_mode = textfile_get_int(pathname, "old_rumble_mode", 0);
 
+        settings.timeout.enabled = textfile_get_int(pathname, "enable_timeout", 1); // Enable inactive timeout.
+        settings.timeout.timeout_ms = textfile_get_int(pathname, "timeout_mins", 10); // Set inactive timeout for 10 minutes.
+        
         settings.safety_timeout.enabled = textfile_get_int(pathname, "enable_safety_timeout", 1);
         settings.safety_timeout.timeout_ms = textfile_get_int(pathname, "safety_timeout_ms", 250);
 
@@ -178,6 +181,9 @@ struct device_settings init_values(const char *addr)
         settings.rumble.enabled = textfile_get_int(pathname, "enable_rumble", 1);
         settings.rumble.old_mode = textfile_get_int(pathname, "old_rumble_mode", 0);
 
+        settings.timeout.enabled = textfile_get_int(pathname, "enable_timeout", 1); // Enable inactive timeout.
+        settings.timeout.timeout_ms = textfile_get_int(pathname, "timeout_mins", 10); // Set inactive timeout for 10 minutes.
+        
         settings.safety_timeout.enabled = textfile_get_int(pathname, "enable_safety_timeout", 1);
         settings.safety_timeout.timeout_ms = textfile_get_int(pathname, "safety_timeout_ms", 250);
     } else { // no config
@@ -236,6 +242,9 @@ struct device_settings init_values(const char *addr)
         settings.rumble.enabled = 1;
         settings.rumble.old_mode = 0;
 
+        settings.timeout.enabled = 1;
+        settings.timeout.timeout_ms = 10;
+        
         settings.safety_timeout.enabled = 1;
         settings.safety_timeout.timeout_ms = 250;
     }
